@@ -265,6 +265,65 @@
         #delete-button:hover {
             background-color: #a71d2a; /* Darker red for hover */
         }
+
+        /* Toast Container */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .toast {
+            background-color: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            margin: 8px;
+            min-width: 200px;
+            max-width: 400px;
+            opacity: 0;
+            transform: translateY(100%);
+            animation: slideIn 0.3s forwards;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .toast.success {
+            background-color: #28a745;
+        }
+
+        .toast.error {
+            background-color: #dc3545;
+        }
+
+        .toast.info {
+            background-color: #17a2b8;
+        }
+
+        @keyframes slideIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideOut {
+            to {
+                opacity: 0;
+                transform: translateY(100%);
+            }
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0 0 0 16px;
+        }
     </style>
 </head>
 <body>
@@ -304,7 +363,46 @@
         </div>
     </div>
 
+    <div id="toast-container"></div>
+
     <script>
+
+        // Toast Management
+        class ToastManager {
+            constructor() {
+                this.container = document.getElementById('toast-container');
+            }
+
+            show(message, type = 'info', duration = 3000) {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.innerHTML = `
+                    <span>${message}</span>
+                    <button class="toast-close">&times;</button>
+                `;
+
+                // Add close button functionality
+                const closeBtn = toast.querySelector('.toast-close');
+                closeBtn.addEventListener('click', () => this.dismiss(toast));
+
+                this.container.appendChild(toast);
+
+                // Auto dismiss after duration
+                setTimeout(() => this.dismiss(toast), duration);
+            }
+
+            dismiss(toast) {
+                toast.style.animation = 'slideOut 0.3s forwards';
+                setTimeout(() => {
+                    if (toast.parentElement) {
+                        toast.parentElement.removeChild(toast);
+                    }
+                }, 300);
+            }
+        }
+
+        const toastManager = new ToastManager();
+
         // Post Management
         const POSTS_KEY = 'writing_app_posts';
         let currentPostId = null;
@@ -319,7 +417,6 @@
         }
 
         function savePosts() {
-            // Filter out posts that have no content and no title
             const nonEmptyPosts = posts.filter(post => {
                 const hasContent = post.content && post.content.length > 0;
                 const hasTitle = post.title && post.title.trim() !== '';
@@ -327,8 +424,9 @@
             });
             
             localStorage.setItem(POSTS_KEY, JSON.stringify(nonEmptyPosts));
-            posts = nonEmptyPosts; // Update the posts array to remove empty posts
+            posts = nonEmptyPosts;
             updateSidebar();
+            toastManager.show('Changes saved', 'info', 2000); // Shorter duration for frequent saves
         }
 
         function createNewPost() {
@@ -336,14 +434,15 @@
                 id: Date.now(),
                 title: '',
                 content: [],
-                currentText: '',  // Add this field
+                currentText: '',
                 lastEdited: new Date().toISOString()
             };
             posts.push(post);
             currentPostId = post.id;
             document.getElementById('post-title').value = '';
-            document.getElementById('editor').value = '';  
+            document.getElementById('editor').value = '';
             document.getElementById('summary-area').innerHTML = '';
+            toastManager.show('Started new post', 'info');
         }
 
         function loadPost(postId) {
@@ -453,10 +552,16 @@
 
         function saveSettings() {
             const apiKey = document.getElementById('api-key').value;
+            if (!apiKey.trim()) {
+                toastManager.show('Please enter an API key', 'error');
+                return;
+            }
+            
             const settings = { apiKey };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
             OPENAI_API_KEY = apiKey;
             closeSettingsModal();
+            toastManager.show('Settings saved successfully', 'success');
         }
 
         // Modal Management
@@ -599,7 +704,7 @@
         const copyButton = document.getElementById('copy-button');
         copyButton.addEventListener('click', () => {
             if (!currentPostId) {
-                alert('No post to copy!');
+                toastManager.show('No post to copy!', 'error');
                 return;
             }
 
@@ -607,34 +712,36 @@
             if (post) {
                 const postContent = `Title: ${post.title || 'Untitled'}\n\n${post.content.map(p => p.text).join('\n\n')}`;
                 navigator.clipboard.writeText(postContent)
-                    .catch(err => console.error('Failed to copy post:', err));
+                    .then(() => {
+                        toastManager.show('Content copied to clipboard!', 'success');
+                    })
+                    .catch(err => {
+                        console.error('Failed to copy post:', err);
+                        toastManager.show('Failed to copy content', 'error');
+                    });
             }
         });
 
         const deleteButton = document.getElementById('delete-button');
         deleteButton.addEventListener('click', () => {
             if (!currentPostId) {
-                alert('No post to delete!');
+                toastManager.show('No post to delete!', 'error');
                 return;
             }
-        
-            // Confirm deletion
+
             const confirmation = confirm('Are you sure you want to delete this post?');
             if (confirmation) {
-                // Find the index of the post and remove it
                 posts = posts.filter(post => post.id !== currentPostId);
-        
-                // Save updated posts to localStorage and refresh sidebar
                 savePosts();
-        
-                // Load the newest post if any exist, otherwise create new post
+                
                 if (posts.length > 0) {
-                    // Find the newest post by sorting by id (timestamp) and getting the first one
                     const newestPost = posts.sort((a, b) => b.id - a.id)[0];
                     loadPost(newestPost.id);
                 } else {
                     createNewPost();
                 }
+                
+                toastManager.show('Post deleted successfully', 'success');
             }
         });
 
