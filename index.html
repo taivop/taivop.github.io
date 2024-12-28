@@ -417,16 +417,14 @@
         }
 
         function savePosts() {
-            const nonEmptyPosts = posts.filter(post => {
-                const hasContent = post.content && post.content.length > 0;
-                const hasTitle = post.title && post.title.trim() !== '';
-                return hasContent || hasTitle;
-            });
-            
-            localStorage.setItem(POSTS_KEY, JSON.stringify(nonEmptyPosts));
-            posts = nonEmptyPosts;
+            localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
             updateSidebar();
             toastManager.show('Changes saved', 'info', 2000); // Shorter duration for frequent saves
+        }
+
+        function autoSavePosts() {
+            localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+            updateSidebar();
         }
 
         function createNewPost() {
@@ -438,10 +436,12 @@
                 lastEdited: new Date().toISOString()
             };
             posts.push(post);
+            updateSidebar();
             currentPostId = post.id;
             document.getElementById('post-title').value = '';
             document.getElementById('editor').value = '';
             document.getElementById('summary-area').innerHTML = '';
+            autoSavePosts();
             toastManager.show('Started new post', 'info');
         }
 
@@ -458,6 +458,14 @@
                     bullet.classList.remove('loading');
                     document.getElementById('summary-area').appendChild(bullet);
                 });
+
+                document.querySelectorAll('.post-list li').forEach(li => {
+                    if (li.dataset.postId === postId.toString()) {
+                        li.style.backgroundColor = '#f0f0f0';
+                    } else {
+                        li.style.backgroundColor = '';
+                    }
+                });
             }
         }
 
@@ -465,14 +473,17 @@
             const now = new Date();
             const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
             const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
-        
+
+            // Non-empty posts
+            const nonEmptyPosts = posts.filter(p => p.content.length > 0 || p.title || p.currentText?.length > 0 );
+
             // Filter and sort recent posts
-            const recentPosts = posts
+            const recentPosts = nonEmptyPosts
                 .filter(p => new Date(p.lastEdited) > sevenDaysAgo)
                 .sort((a, b) => b.id - a.id); // Sort by creation time, newest first
         
             // Filter and sort older posts
-            const olderPosts = posts
+            const olderPosts = nonEmptyPosts
                 .filter(p => {
                     const date = new Date(p.lastEdited);
                     return date <= sevenDaysAgo && date > thirtyDaysAgo;
@@ -490,7 +501,11 @@
             recentPosts.forEach(post => {
                 const li = document.createElement('li');
                 li.textContent = post.title || 'Untitled';
+                li.dataset.postId = post.id; // Add this line
                 li.onclick = () => loadPost(post.id);
+                if (post.id === currentPostId) { // Add this condition
+                    li.style.backgroundColor = '#f0f0f0';
+                }
                 recentList.appendChild(li);
             });
         
@@ -498,7 +513,11 @@
             olderPosts.forEach(post => {
                 const li = document.createElement('li');
                 li.textContent = post.title || 'Untitled';
+                li.dataset.postId = post.id; // Add this line
                 li.onclick = () => loadPost(post.id);
+                if (post.id === currentPostId) { // Add this condition
+                    li.style.backgroundColor = '#f0f0f0';
+                }
                 olderList.appendChild(li);
             });
         }
@@ -530,9 +549,7 @@
                     const newTitle = postTitle.value.trim();
                     post.title = newTitle;
                     post.lastEdited = new Date().toISOString();
-                    if (newTitle !== '') {  // Only save if title is non-empty
-                        savePosts();
-                    }
+                    autoSavePosts();
                 }
             }
         });
@@ -648,17 +665,16 @@
             // Create new post if needed when text is added
             if (!currentPostId && text.trim() !== '') {
                 createNewPost();
+                // After creating new post, update the editor value since createNewPost clears it
+                editor.value = text;
             }
-            
             // Save current text immediately
             if (currentPostId) {
                 const post = posts.find(p => p.id === currentPostId);
                 if (post) {
                     post.currentText = text;
                     post.lastEdited = new Date().toISOString();
-                    if (post.title || post.content.length > 0 || text.trim() !== '') {  // Added check for non-empty text
-                        savePosts();
-                    }
+                    autoSavePosts()
                 }
             }
         
