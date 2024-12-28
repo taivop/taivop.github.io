@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Writing Interface</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        #summary-area {
+            margin-bottom: 30px;
+        }
+
+        .summary-bullet {
+            background-color: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .summary-bullet.expanded {
+            padding: 20px;
+        }
+
+        .summary-bullet .full-text {
+            display: none;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+
+        .summary-bullet.expanded .full-text {
+            display: block;
+        }
+
+        #writing-area {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            min-height: 200px;
+        }
+
+        #editor {
+            width: 100%;
+            min-height: 150px;
+            border: none;
+            resize: vertical;
+            font-size: 16px;
+            line-height: 1.5;
+            font-family: inherit;
+        }
+
+        #editor:focus {
+            outline: none;
+        }
+
+        .loading .summary {
+            opacity: 0.5;
+        }
+
+        .loading .summary::after {
+            content: '';
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            margin-left: 8px;
+            border: 2px solid #ccc;
+            border-radius: 50%;
+            border-top-color: #666;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Settings Button and Modal Styles */
+        #settings-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            background: #fff;
+            border: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            z-index: 100;
+        }
+
+        #settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .modal-content h2 {
+            margin-top: 0;
+        }
+
+        .modal-content label {
+            display: block;
+            margin: 10px 0 5px;
+            font-size: 14px;
+        }
+
+        .modal-content input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .modal-content button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #007aff;
+            color: white;
+            cursor: pointer;
+        }
+
+        .modal-content button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="summary-area"></div>
+    <div id="writing-area">
+        <textarea id="editor" placeholder="Start writing here..."></textarea>
+    </div>
+
+    <button id="settings-button">⚙️</button>
+
+    <div id="settings-modal">
+        <div class="modal-content">
+            <h2>Settings</h2>
+            <label for="api-key">OpenAI API Key</label>
+            <input type="password" id="api-key" placeholder="Enter your API key">
+            <button onclick="saveSettings()">Save</button>
+        </div>
+    </div>
+
+    <script>
+        // Settings management
+        const STORAGE_KEY = 'writing_app_settings';
+        let OPENAI_API_KEY = '';
+
+        function loadSettings() {
+            const settings = localStorage.getItem(STORAGE_KEY);
+            if (settings) {
+                const parsed = JSON.parse(settings);
+                OPENAI_API_KEY = parsed.apiKey || '';
+                document.getElementById('api-key').value = OPENAI_API_KEY;
+            }
+        }
+
+        function saveSettings() {
+            const apiKey = document.getElementById('api-key').value;
+            const settings = { apiKey };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+            OPENAI_API_KEY = apiKey;
+            closeSettingsModal();
+        }
+
+        // Modal management
+        const settingsButton = document.getElementById('settings-button');
+        const settingsModal = document.getElementById('settings-modal');
+
+        function openSettingsModal() {
+            settingsModal.style.display = 'flex';
+        }
+
+        function closeSettingsModal() {
+            settingsModal.style.display = 'none';
+        }
+
+        settingsButton.addEventListener('click', openSettingsModal);
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                closeSettingsModal();
+            }
+        });
+
+        // Load settings on startup
+        loadSettings();
+
+        async function summarizeText(text) {
+            try {
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${OPENAI_API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o-mini',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'Summarize the following paragraph in 5 words'
+                            },
+                            {
+                                role: 'user',
+                                content: text
+                            }
+                        ],
+                        temperature: 0.7
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('API request failed');
+                }
+
+                const data = await response.json();
+                return data.choices[0].message.content;
+            } catch (error) {
+                console.error('Summarization failed:', error);
+                if (!OPENAI_API_KEY) {
+                    openSettingsModal();
+                    return 'Please set your API key';
+                }
+                return text.split(' ').slice(0, 5).join(' ') + '...';
+            }
+        }
+
+        function createLoadingBullet(text) {
+            const bullet = document.createElement('div');
+            bullet.className = 'summary-bullet loading';
+            bullet.innerHTML = `
+                <div class="summary">Processing summary...</div>
+                <div class="full-text">${text}</div>
+            `;
+
+            bullet.addEventListener('click', () => {
+                bullet.classList.toggle('expanded');
+            });
+
+            return bullet;
+        }
+
+        const editor = document.getElementById('editor');
+        const summaryArea = document.getElementById('summary-area');
+
+        editor.addEventListener('input', (e) => {
+            const text = e.target.value;
+            if (text.endsWith('\n\n')) {
+                const paragraph = text.trim();
+                if (paragraph) {
+                    const bullet = createLoadingBullet(paragraph);
+                    summaryArea.appendChild(bullet);
+                    
+                    summarizeText(paragraph).then(summary => {
+                        bullet.querySelector('.summary').textContent = summary;
+                        bullet.classList.remove('loading');
+                    });
+
+                    editor.value = '';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
