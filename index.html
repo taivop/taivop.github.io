@@ -123,6 +123,14 @@
             text-overflow: ellipsis;
         }
 
+        .summary-bullet.expanded {
+            white-space: normal; /* Allow wrapping of text */
+            overflow: visible; /* Show all content */
+            text-overflow: unset; /* Remove ellipsis */
+            background-color: #f9f9f9; /* Optional: Change background to indicate expansion */
+            padding: 20px; /* Optional: Add padding for better readability */
+        }
+
         .summary-bullet .summary {
             font-weight: 500;
             color: #000;
@@ -473,7 +481,7 @@
         // Initialize
         loadSettings();
         loadPosts();
-        if (!currentPostId) {a
+        if (!currentPostId) {
             createNewPost();
         }
     </script>
