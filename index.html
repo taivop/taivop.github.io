@@ -233,6 +233,38 @@
         .highlight-button:hover {
             background-color: #0056b3;
         }
+
+        #copy-button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+        
+        #copy-button:hover {
+            background-color: #0056b3;
+        }
+
+        #delete-button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #dc3545; /* Red color for delete */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+        
+        #delete-button:hover {
+            background-color: #a71d2a; /* Darker red for hover */
+        }
     </style>
 </head>
 <body>
@@ -258,6 +290,8 @@
         <div id="writing-area">
             <textarea id="editor" placeholder="Start writing here..."></textarea>
         </div>
+        <button id="copy-button">Copy to Clipboard</button>
+        <button id="delete-button">Delete post</button>
     </div>
 
     <button id="settings-button">⚙️</button>
@@ -363,8 +397,17 @@
         const menuButton = document.getElementById('menu-button');
         const sidebar = document.getElementById('sidebar');
 
+        // Track the sidebar state
+        let isSidebarOpen = true; // Initially open
+
         menuButton.addEventListener('click', () => {
-            sidebar.classList.toggle('open');
+            isSidebarOpen = !isSidebarOpen; // Toggle the state
+            sidebar.classList.toggle('open', isSidebarOpen); // Add or remove the 'open' class
+            if (isSidebarOpen) {
+                sidebar.style.left = "0"; // Keep sidebar open
+            } else {
+                sidebar.style.left = "-300px"; // Close sidebar
+            }
         });
 
         // Title Management
@@ -516,6 +559,45 @@
 
         newPostButton.addEventListener('click', () => {
             createNewPost();
+        });
+
+        const copyButton = document.getElementById('copy-button');
+        copyButton.addEventListener('click', () => {
+            if (!currentPostId) {
+                alert('No post to copy!');
+                return;
+            }
+
+            const post = posts.find(p => p.id === currentPostId);
+            if (post) {
+                const postContent = `Title: ${post.title || 'Untitled'}\n\n${post.content.map(p => p.text).join('\n\n')}`;
+                navigator.clipboard.writeText(postContent)
+                    .catch(err => console.error('Failed to copy post:', err));
+            }
+        });
+
+        const deleteButton = document.getElementById('delete-button');
+        deleteButton.addEventListener('click', () => {
+            if (!currentPostId) {
+                alert('No post to delete!');
+                return;
+            }
+
+            // Confirm deletion
+            const confirmation = confirm('Are you sure you want to delete this post?');
+            if (confirmation) {
+                // Find the index of the post and remove it
+                posts = posts.filter(post => post.id !== currentPostId);
+
+                // Clear the editor and reset currentPostId
+                currentPostId = null;
+                document.getElementById('post-title').value = '';
+                document.getElementById('editor').value = '';
+                document.getElementById('summary-area').innerHTML = '';
+
+                // Save updated posts to localStorage and refresh sidebar
+                savePosts();
+            }
         });
 
         // Initialize
