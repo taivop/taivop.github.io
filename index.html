@@ -319,7 +319,15 @@
         }
 
         function savePosts() {
-            localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+            // Filter out posts that have no content and no title
+            const nonEmptyPosts = posts.filter(post => {
+                const hasContent = post.content && post.content.length > 0;
+                const hasTitle = post.title && post.title.trim() !== '';
+                return hasContent || hasTitle;
+            });
+            
+            localStorage.setItem(POSTS_KEY, JSON.stringify(nonEmptyPosts));
+            posts = nonEmptyPosts; // Update the posts array to remove empty posts
             updateSidebar();
         }
 
@@ -331,8 +339,9 @@
                 lastEdited: new Date().toISOString()
             };
             posts.push(post);
-            savePosts();
-            loadPost(post.id);
+            currentPostId = post.id;
+            document.getElementById('post-title').value = '';
+            document.getElementById('summary-area').innerHTML = '';
         }
 
         function loadPost(postId) {
@@ -398,7 +407,7 @@
         const sidebar = document.getElementById('sidebar');
 
         // Track the sidebar state
-        let isSidebarOpen = true; // Initially open
+        let isSidebarOpen = false; // Initially open
 
         menuButton.addEventListener('click', () => {
             isSidebarOpen = !isSidebarOpen; // Toggle the state
@@ -416,9 +425,12 @@
             if (currentPostId) {
                 const post = posts.find(p => p.id === currentPostId);
                 if (post) {
-                    post.title = postTitle.value;
+                    const newTitle = postTitle.value.trim();
+                    post.title = newTitle;
                     post.lastEdited = new Date().toISOString();
-                    savePosts();
+                    if (newTitle !== '') {  // Only save if title is non-empty
+                        savePosts();
+                    }
                 }
             }
         });
@@ -530,14 +542,14 @@
                     if (!currentPostId) {
                         createNewPost();
                     }
-
+        
                     const bullet = createLoadingBullet(paragraph);
                     summaryArea.appendChild(bullet);
                     
                     const summary = await summarizeText(paragraph);
                     bullet.querySelector('.summary').textContent = summary;
                     bullet.classList.remove('loading');
-
+        
                     // Update post content
                     const post = posts.find(p => p.id === currentPostId);
                     if (post) {
@@ -547,9 +559,10 @@
                             post.title = paragraph.split('\n')[0];
                             document.getElementById('post-title').value = post.title;
                         }
+                        // Always save when a paragraph is added
                         savePosts();
                     }
-
+        
                     editor.value = '';
                 }
             }
@@ -582,21 +595,24 @@
                 alert('No post to delete!');
                 return;
             }
-
+        
             // Confirm deletion
             const confirmation = confirm('Are you sure you want to delete this post?');
             if (confirmation) {
                 // Find the index of the post and remove it
                 posts = posts.filter(post => post.id !== currentPostId);
-
-                // Clear the editor and reset currentPostId
-                currentPostId = null;
-                document.getElementById('post-title').value = '';
-                document.getElementById('editor').value = '';
-                document.getElementById('summary-area').innerHTML = '';
-
+        
                 // Save updated posts to localStorage and refresh sidebar
                 savePosts();
+        
+                // Load the newest post if any exist, otherwise create new post
+                if (posts.length > 0) {
+                    // Find the newest post by sorting by id (timestamp) and getting the first one
+                    const newestPost = posts.sort((a, b) => b.id - a.id)[0];
+                    loadPost(newestPost.id);
+                } else {
+                    createNewPost();
+                }
             }
         });
 
