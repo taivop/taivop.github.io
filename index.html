@@ -651,8 +651,7 @@
             }
         });
 
-        // Summarization and Content Management
-        async function summarizeText(text) {
+        async function summarizeTexts(paragraphs, existingSummaries = []) {
             try {
                 const response = await fetch('https://api.openai.com/v1/chat/completions', {
                     method: 'POST',
@@ -665,30 +664,37 @@
                         messages: [
                             {
                                 role: 'system',
-                                content: 'Summarize the following paragraph in 5 words'
+                                content: `For each paragraph in the provided JSON array, generate a 5-word summary. Return the results as a JSON array in the same order. If an existing summary is still very appropriate, return it unchanged. Here are the existing summaries for context: ${JSON.stringify(existingSummaries)}`
                             },
                             {
                                 role: 'user',
-                                content: text
+                                content: JSON.stringify(paragraphs)
                             }
                         ],
-                        temperature: 0.7
+                        temperature: 0.0
                     })
                 });
-
+        
                 if (!response.ok) {
                     throw new Error('API request failed');
                 }
-
+        
                 const data = await response.json();
-                return data.choices[0].message.content;
+                try {
+                    // Try to parse the response as JSON
+                    return JSON.parse(data.choices[0].message.content);
+                } catch (e) {
+                    // If parsing fails, split the response and return as array
+                    return data.choices[0].message.content.split('\n').map(summary => summary.trim());
+                }
             } catch (error) {
                 console.error('Summarization failed:', error);
                 if (!OPENAI_API_KEY) {
                     openSettingsModal();
-                    return 'Please set your API key';
+                    return paragraphs.map(text => 'Please set your API key');
                 }
-                return text.split(' ').slice(0, 5).join(' ') + '...';
+                // Fallback: return first 5 words of each paragraph
+                return paragraphs.map(text => text.split(' ').slice(0, 5).join(' ') + '...');
             }
         }
 
@@ -735,20 +741,20 @@
             // Create new post if needed when text is added
             if (!currentPostId && text.trim() !== '') {
                 createNewPost();
-                // After creating new post, update the editor value since createNewPost clears it
                 editor.value = text;
             }
+        
             // Save current text immediately
             if (currentPostId) {
                 const post = posts.find(p => p.id === currentPostId);
                 if (post) {
                     post.currentText = text;
                     post.lastEdited = new Date().toISOString();
-                    autoSavePosts()
+                    autoSavePosts();
                 }
             }
         
-            // Existing paragraph processing logic
+            // Process paragraph when double newline is detected
             if (text.endsWith('\n\n')) {
                 const paragraph = text.trim();
                 if (paragraph) {
@@ -756,27 +762,45 @@
                         createNewPost();
                     }
         
-                    const bullet = createLoadingBullet(paragraph);
-                    summaryArea.appendChild(bullet);
-                    
-                    const summary = await summarizeText(paragraph);
-                    bullet.querySelector('.summary').textContent = summary;
-                    bullet.classList.remove('loading');
-        
-                    // Update post content
                     const post = posts.find(p => p.id === currentPostId);
                     if (post) {
-                        post.content.push({ text: paragraph, summary });
-                        post.currentText = '';  // Clear current text after creating paragraph
+                        // Add new paragraph to content array temporarily without summary
+                        post.content.push({ text: paragraph, summary: 'Processing...' });
+                        
+                        // Create bullet point for new paragraph
+                        const bullet = createLoadingBullet(paragraph);
+                        summaryArea.appendChild(bullet);
+        
+                        // Get all paragraphs and existing summaries
+                        const allParagraphs = post.content.map(p => p.text);
+                        const existingSummaries = post.content.map(p => p.summary);
+        
+                        // Request summaries in batch, passing existing summaries
+                        const summaries = await summarizeTexts(allParagraphs, existingSummaries);
+        
+                        // Update all summaries in the UI and post content
+                        post.content.forEach((p, index) => {
+                            p.summary = summaries[index];
+                            const bullets = document.querySelectorAll('.summary-bullet');
+                            if (bullets[index]) {
+                                bullets[index].querySelector('.summary').textContent = summaries[index];
+                                bullets[index].classList.remove('loading');
+                            }
+                        });
+        
+                        // Clear current text and update post
+                        post.currentText = '';
                         post.lastEdited = new Date().toISOString();
+                        
+                        // Set title if this is the first paragraph
                         if (!post.title && post.content.length === 1) {
                             post.title = paragraph.split('\n')[0];
                             document.getElementById('post-title').value = post.title;
                         }
+                        
                         savePosts();
+                        editor.value = '';
                     }
-        
-                    editor.value = '';
                 }
             }
         });
