@@ -213,12 +213,35 @@
             width: 90%;
             max-width: 400px;
         }
+        
+        .highlight-button {
+            display: block;
+            width: 100%;
+            padding: 10px 20px;
+            margin-bottom: 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease;
+        }
+        
+        .highlight-button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
     <button id="menu-button">☰</button>
     
     <div id="sidebar">
+        <div class="sidebar-section">
+            <button id="new-post-button" class="highlight-button">New Post</button>
+        </div>
         <div class="sidebar-section">
             <h2>Previous 7 Days</h2>
             <ul class="post-list" id="recent-posts"></ul>
@@ -297,26 +320,36 @@
             const now = new Date();
             const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
             const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
-
-            const recentPosts = posts.filter(p => new Date(p.lastEdited) > sevenDaysAgo);
-            const olderPosts = posts.filter(p => {
-                const date = new Date(p.lastEdited);
-                return date <= sevenDaysAgo && date > thirtyDaysAgo;
-            });
-
+        
+            // Filter and sort recent posts
+            const recentPosts = posts
+                .filter(p => new Date(p.lastEdited) > sevenDaysAgo)
+                .sort((a, b) => b.id - a.id); // Sort by creation time, newest first
+        
+            // Filter and sort older posts
+            const olderPosts = posts
+                .filter(p => {
+                    const date = new Date(p.lastEdited);
+                    return date <= sevenDaysAgo && date > thirtyDaysAgo;
+                })
+                .sort((a, b) => b.id - a.id); // Sort by creation time, newest first
+        
             const recentList = document.getElementById('recent-posts');
             const olderList = document.getElementById('older-posts');
-
+        
+            // Clear the existing lists
             recentList.innerHTML = '';
             olderList.innerHTML = '';
-
+        
+            // Populate the recent posts
             recentPosts.forEach(post => {
                 const li = document.createElement('li');
                 li.textContent = post.title || 'Untitled';
                 li.onclick = () => loadPost(post.id);
                 recentList.appendChild(li);
             });
-
+        
+            // Populate the older posts
             olderPosts.forEach(post => {
                 const li = document.createElement('li');
                 li.textContent = post.title || 'Untitled';
@@ -324,6 +357,7 @@
                 olderList.appendChild(li);
             });
         }
+        
 
         // Sidebar Toggle
         const menuButton = document.getElementById('menu-button');
@@ -476,6 +510,12 @@
                     editor.value = '';
                 }
             }
+        });
+
+        const newPostButton = document.getElementById('new-post-button');
+
+        newPostButton.addEventListener('click', () => {
+            createNewPost();
         });
 
         // Initialize
