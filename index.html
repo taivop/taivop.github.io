@@ -144,6 +144,14 @@
             display: inline;
         }
 
+        .summary-bullet .preview[contenteditable="true"]:focus {
+            outline: none;
+            border: none;
+            padding: 8px;
+            margin: -8px;
+            border-radius: 4px;
+        }
+
         .summary-bullet .preview::before {
             content: "—";
             margin-right: 8px;
@@ -646,18 +654,37 @@
             bullet.className = 'summary-bullet loading';
             bullet.innerHTML = `
                 <div class="summary">Processing summary...</div>
-                <div class="preview">${text}</div>
+                <div class="preview" contenteditable="true" spellcheck="true">${text}</div>
             `;
-
-            bullet.addEventListener('click', () => {
+        
+            bullet.addEventListener('click', (e) => {
+                // Don't toggle expanded state if clicking inside the preview when it's already expanded
+                if (e.target.classList.contains('preview') && bullet.classList.contains('expanded')) {
+                    return;
+                }
                 bullet.classList.toggle('expanded');
             });
-
+        
             return bullet;
         }
 
         const editor = document.getElementById('editor');
         const summaryArea = document.getElementById('summary-area');
+
+        summaryArea.addEventListener('input', (e) => {
+            if (e.target.classList.contains('preview') && currentPostId) {
+                const bullet = e.target.closest('.summary-bullet');
+                const allBullets = Array.from(document.querySelectorAll('.summary-bullet'));
+                const index = allBullets.indexOf(bullet);
+                
+                const post = posts.find(p => p.id === currentPostId);
+                if (post && post.content[index]) {
+                    post.content[index].text = e.target.textContent;
+                    post.lastEdited = new Date().toISOString();
+                    autoSavePosts();
+                }
+            }
+        });
 
         editor.addEventListener('input', async (e) => {
             const text = e.target.value;
