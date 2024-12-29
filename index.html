@@ -201,6 +201,20 @@
             color: #ccc;
         }
 
+        .summary-bullet.dragging {
+            opacity: 0.5;
+            border: 2px dashed #666;
+        }
+    
+        .summary-bullet.drag-over {
+            border-top: 2px solid #007bff;
+        }
+    
+        /* Optional: Add a grab cursor to indicate draggability */
+        .summary-bullet:not(.dragging) {
+            cursor: grab;
+        }
+
         /* Writing Area */
         #writing-area {
             background-color: white;
@@ -701,13 +715,23 @@
         function createLoadingBullet(text) {
             const bullet = document.createElement('div');
             bullet.className = 'summary-bullet loading';
+            // Add drag attributes
+            bullet.draggable = true;
+            bullet.setAttribute('data-draggable', 'true');
+            
             bullet.innerHTML = `
                 <div class="summary">Processing summary...</div>
                 <div class="preview" contenteditable="true" spellcheck="true">${text}</div>
             `;
         
+            // Add drag event listeners
+            bullet.addEventListener('dragstart', handleDragStart);
+            bullet.addEventListener('dragend', handleDragEnd);
+            bullet.addEventListener('dragover', handleDragOver);
+            bullet.addEventListener('drop', handleDrop);
+            
+            // Existing click handler
             bullet.addEventListener('click', (e) => {
-                // Don't toggle expanded state if clicking inside the preview when it's already expanded
                 if (e.target.classList.contains('preview') && bullet.classList.contains('expanded')) {
                     return;
                 }
@@ -855,12 +879,96 @@
             }
         });
 
+        let draggedElement = null;
+
+        function handleDragStart(e) {
+            draggedElement = this;
+            this.classList.add('dragging');
+            
+            // Set the dragged data
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', ''); // Required for Firefox
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            
+            // Remove drag-over class from all bullets
+            document.querySelectorAll('.summary-bullet').forEach(bullet => {
+                bullet.classList.remove('drag-over');
+            });
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault(); // Necessary to allow dropping
+            }
+            
+            // Add visual feedback
+            this.classList.add('drag-over');
+            return false;
+        }
+
+        function handleDrop(e) {
+            e.stopPropagation(); // Stops some browsers from redirecting
+            e.preventDefault();
+            
+            // Remove visual feedback
+            this.classList.remove('drag-over');
+            
+            if (draggedElement !== this) {
+                // Get all bullets and their positions
+                const summaryArea = document.getElementById('summary-area');
+                const bullets = Array.from(summaryArea.children);
+                const draggedIndex = bullets.indexOf(draggedElement);
+                const droppedIndex = bullets.indexOf(this);
+                
+                // Update DOM
+                if (draggedIndex < droppedIndex) {
+                    this.parentNode.insertBefore(draggedElement, this.nextSibling);
+                } else {
+                    this.parentNode.insertBefore(draggedElement, this);
+                }
+                
+                // Update post content array
+                if (currentPostId) {
+                    const post = posts.find(p => p.id === currentPostId);
+                    if (post) {
+                        const movedContent = post.content.splice(draggedIndex, 1)[0];
+                        post.content.splice(droppedIndex, 0, movedContent);
+                        post.lastEdited = new Date().toISOString();
+                        savePosts();
+                    }
+                }
+            }
+            
+            return false;
+        }
+
+        // 4. Add this function to initialize drag and drop on existing bullets
+        function initializeDragAndDrop() {
+            const summaryArea = document.getElementById('summary-area');
+            
+            // Add dragover event to the summary area to allow dropping
+            summaryArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                return false;
+            });
+            
+            // Add drop event to handle dropping on empty areas
+            summaryArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                return false;
+            });
+        }
+
         // Initialize
         loadSettings();
         loadPosts();
         if (!currentPostId) {
             createNewPost();
         }
+        initializeDragAndDrop();
     </script>
 </body>
 </html>
