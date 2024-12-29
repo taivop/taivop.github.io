@@ -752,9 +752,20 @@
                 
                 const post = posts.find(p => p.id === currentPostId);
                 if (post && post.content[index]) {
-                    post.content[index].text = e.target.textContent;
-                    post.lastEdited = new Date().toISOString();
-                    autoSavePosts();
+                    const newText = e.target.textContent.trim();
+                    
+                    if (newText === '') {
+                        // Remove the bullet from DOM
+                        bullet.remove();
+                        // Remove the paragraph from post content
+                        post.content.splice(index, 1);
+                        post.lastEdited = new Date().toISOString();
+                        savePosts();
+                    } else {
+                        post.content[index].text = e.target.textContent;
+                        post.lastEdited = new Date().toISOString();
+                        autoSavePosts();
+                    }
                 }
             }
         });
