@@ -431,6 +431,7 @@
     <div id="toast-container"></div>
 
     <script>
+        const PARAGRAPH_SPLITTER = '\n\n\n';
 
         // Toast Management
         class ToastManager {
@@ -790,7 +791,7 @@
             }
         
             // Process paragraph when double newline is detected
-            if (text.endsWith('\n\n')) {
+            if (text.endsWith(PARAGRAPH_SPLITTER)) {
                 const paragraph = text.trim();
                 if (paragraph) {
                     if (!currentPostId) {
@@ -855,7 +856,7 @@
 
             const post = posts.find(p => p.id === currentPostId);
             if (post) {
-                const postContent = `Title: ${post.title || 'Untitled'}\n\n${post.content.map(p => p.text).join('\n\n')}`;
+                const postContent = `Title: ${post.title || 'Untitled'}${PARAGRAPH_SPLITTER}${post.content.map(p => p.text).join(PARAGRAPH_SPLITTER)}`;
                 navigator.clipboard.writeText(postContent)
                     .then(() => {
                         toastManager.show('Content copied to clipboard!', 'success');
